@@ -1,6 +1,6 @@
+import argparse
 import mido
 import time
-import sys
 
 mido.set_backend("mido.backends.rtmidi")
 
@@ -27,7 +27,17 @@ def find_port(names, device_name):
     return matches[0] if matches else None
 
 
-def main():
+def list_ports():
+    print("MIDI input ports:")
+    for index, name in enumerate(mido.get_input_names()):
+        print(f"  [{index}] {name}")
+
+    print("\nMIDI output ports:")
+    for index, name in enumerate(mido.get_output_names()):
+        print(f"  [{index}] {name}")
+
+
+def run_server(diagnostic=False):
     print("--- Behringer X-Touch Compact HUI Server (Windows) ---")
 
     input_names = mido.get_input_names()
@@ -97,6 +107,9 @@ def main():
         ))
 
     def handle_xtouch_to_daw(msg):
+        if diagnostic:
+            print("X-Touch:", msg)
+
         if msg.type == "pitchwheel":
             channel = msg.channel
             if 0 <= channel <= 7:
@@ -154,6 +167,9 @@ def main():
 
     def handle_daw_to_xtouch(msg):
         nonlocal current_hui_zone, fader_msb
+
+        if diagnostic:
+            print("HUI:", msg)
 
         if msg.type == "note_on" and msg.note == 0 and msg.velocity == 0:
             hui_out.send(mido.Message("note_on", channel=0, note=0, velocity=127))
@@ -217,5 +233,18 @@ def main():
     return 0
 
 
+def main():
+    parser = argparse.ArgumentParser(description="Windows HUI translator for the Behringer X-Touch Compact")
+    parser.add_argument("--list-ports", action="store_true", help="list available MIDI input and output ports")
+    parser.add_argument("--diagnostic", action="store_true", help="print MIDI messages received from both directions")
+    args = parser.parse_args()
+
+    if args.list_ports:
+        list_ports()
+        return 0
+
+    return run_server(diagnostic=args.diagnostic)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
