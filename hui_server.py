@@ -2,13 +2,11 @@ import mido
 import time
 import sys
 
-# Use the Windows RtMidi backend. Virtual ports on macOS are not available
-# on Windows, so Windows users should create loopMIDI ports before starting.
 mido.set_backend("mido.backends.rtmidi")
 
 XTOUCH_PORT_NAME = "X-TOUCH COMPACT"
-HUI_IN_PORT_NAME = "HUI In"
-HUI_OUT_PORT_NAME = "HUI Out"
+HUI_TO_PROTOOLS_PORT = "HUI Out"
+HUI_FROM_PROTOOLS_PORT = "HUI In"
 FADER_COUNT = 8
 HUI_FADER_CENTER_MSB = 64
 HUI_ZONE_SOLO = 0x0A
@@ -25,7 +23,8 @@ MCU_BUTTON_NOTES = {
 
 
 def find_port(names, device_name):
-    return next((name for name in names if device_name.upper() in name.upper()), None)
+    matches = [name for name in names if device_name.upper() in name.upper()]
+    return matches[0] if matches else None
 
 
 def main():
@@ -34,39 +33,52 @@ def main():
     input_names = mido.get_input_names()
     output_names = mido.get_output_names()
 
-    xt_in_name = find_port(input_names, XTOUCH_PORT_NAME)
-    xt_out_name = find_port(output_names, XTOUCH_PORT_NAME)
+    xtouch_input = find_port(input_names, XTOUCH_PORT_NAME)
+    xtouch_output = find_port(output_names, XTOUCH_PORT_NAME)
 
-    if not xt_in_name or not xt_out_name:
+    if not xtouch_input or not xtouch_output:
         print("[-] X-Touch Compact not found.")
         print("    Connect it by USB and set it to MC (Mackie Control) mode.")
         print("    Available MIDI inputs:", input_names)
         print("    Available MIDI outputs:", output_names)
-        sys.exit(1)
+        return 1
 
-    hui_in_name = find_port(input_names, HUI_IN_PORT_NAME)
-    hui_out_name = find_port(output_names, HUI_OUT_PORT_NAME)
+    hui_output = find_port(output_names, HUI_TO_PROTOOLS_PORT)
+    hui_input = find_port(input_names, HUI_FROM_PROTOOLS_PORT)
 
-    if not hui_in_name or not hui_out_name:
-        print("[-] HUI virtual ports not found.")
-        print("    Install loopMIDI and create these ports:")
-        print("      -", HUI_IN_PORT_NAME)
-        print("      -", HUI_OUT_PORT_NAME)
-        print("    You may rename them in this script if desired.")
-        sys.exit(1)
+    if not hui_output:
+        print("[-] Virtual HUI output not found:", HUI_TO_PROTOOLS_PORT)
+        print("    Create it in loopMIDI, then restart this script.")
+        return 1
 
+    if not hui_input:
+        print("[-] Virtual HUI input not found:", HUI_FROM_PROTOOLS_PORT)
+        print("    Create it in loopMIDI, then restart this script.")
+        return 1
+
+    ports = []
     try:
-        xtouch_in = mido.open_input(xt_in_name)
-        xtouch_out = mido.open_output(xt_out_name)
-        hui_in = mido.open_input(hui_in_name)
-        hui_out = mido.open_output(hui_out_name)
+        xtouch_in = mido.open_input(xtouch_input)
+        ports.append(xtouch_in)
+        xtouch_out = mido.open_output(xtouch_output)
+        ports.append(xtouch_out)
+        hui_in = mido.open_input(hui_input)
+        ports.append(hui_in)
+        hui_out = mido.open_output(hui_output)
+        ports.append(hui_out)
     except Exception as exc:
         print(f"[-] Could not open one or more MIDI ports: {exc}")
-        sys.exit(1)
+        for port in ports:
+            try:
+                port.close()
+            except Exception:
+                pass
+        return 1
 
-    print(f"[+] Connected to hardware: {xt_in_name}")
-    print(f"[+] HUI input: {hui_in_name}")
-    print(f"[+] HUI output: {hui_out_name}")
+    print(f"[+] X-Touch input:  {xtouch_input}")
+    print(f"[+] X-Touch output: {xtouch_output}")
+    print(f"[+] HUI input:      {hui_input}")
+    print(f"[+] HUI output:     {hui_output}")
 
     current_hui_zone = 0
     fader_msb = [HUI_FADER_CENTER_MSB] * FADER_COUNT
@@ -119,18 +131,19 @@ def main():
                     }[button_name]
                     send_hui_button(hui_zone, channel, is_pressed)
 
-            if msg.note == 46 and is_pressed:
-                hui_out.send(mido.Message("control_change", channel=0, control=0x0C, value=0x0A))
-                hui_out.send(mido.Message("control_change", channel=0, control=0x2C, value=0x40))
-            elif msg.note == 47 and is_pressed:
-                hui_out.send(mido.Message("control_change", channel=0, control=0x0C, value=0x0A))
-                hui_out.send(mido.Message("control_change", channel=0, control=0x2C, value=0x41))
+                elif msg.note == 46 and is_pressed:
+                    hui_out.send(mido.Message("control_change", channel=0, control=0x0C, value=0x0A))
+                    hui_out.send(mido.Message("control_change", channel=0, control=0x2C, value=0x40))
 
-            elif msg.note in (91, 92, 93, 94, 95):
-                port = {91: 0, 92: 1, 93: 2, 94: 3, 95: 4}[msg.note]
-                value = 0x40 + port if is_pressed else port
-                hui_out.send(mido.Message("control_change", channel=0, control=0x0C, value=0x0E))
-                hui_out.send(mido.Message("control_change", channel=0, control=0x2C, value=value))
+                elif msg.note == 47 and is_pressed:
+                    hui_out.send(mido.Message("control_change", channel=0, control=0x0C, value=0x0A))
+                    hui_out.send(mido.Message("control_change", channel=0, control=0x2C, value=0x41))
+
+                elif msg.note in (91, 92, 93, 94, 95):
+                    port = {91: 0, 92: 1, 93: 2, 94: 3, 95: 4}[msg.note]
+                    value = 0x40 + port if is_pressed else port
+                    hui_out.send(mido.Message("control_change", channel=0, control=0x0C, value=0x0E))
+                    hui_out.send(mido.Message("control_change", channel=0, control=0x2C, value=value))
 
         elif msg.type == "control_change":
             if 16 <= msg.control <= 23:
@@ -195,11 +208,14 @@ def main():
     except KeyboardInterrupt:
         print("\nStopping HUI Server...")
     finally:
-        xtouch_in.close()
-        xtouch_out.close()
-        hui_in.close()
-        hui_out.close()
+        for port in ports:
+            try:
+                port.close()
+            except Exception:
+                pass
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
