@@ -15,10 +15,10 @@ surface in Pro Tools on Windows 11.
 ## Setup
 
 1. Install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html).
-2. Create two ports named exactly:
-   - `HUI In`
-   - `HUI Out`
-3. Install Python dependencies:
+2. Create two loopMIDI ports with these exact names:
+   - `HUI In` — Pro Tools sends HUI feedback through this port
+   - `HUI Out` — this program sends HUI input to Pro Tools through this port
+3. Install dependencies:
 
 ```powershell
 py -m pip install -r requirements.txt
@@ -30,30 +30,34 @@ py -m pip install -r requirements.txt
 py hui_server.py
 ```
 
-5. In Pro Tools, configure an HUI control surface to use the loopMIDI ports:
-   - Receive MIDI from `HUI Out`
-   - Send MIDI to `HUI In`
+Or double-click `start.bat`.
 
-Keep the script running while using Pro Tools.
+5. In Pro Tools, configure an HUI control surface:
+   - Receive MIDI From: `HUI Out`
+   - Send MIDI To: `HUI In`
 
-## Port orientation
+## Verification checklist
 
-If Pro Tools asks for separate MIDI input and output ports:
-
-- **Pro Tools receives from:** `HUI Out`
-- **Pro Tools sends to:** `HUI In`
-
-The script translates MCU messages from the X-Touch Compact into HUI messages
-and forwards HUI feedback back to the X-Touch LEDs and motorized faders.
+- The X-Touch appears as separate MIDI input and output ports.
+- The X-Touch is in Mackie Control mode.
+- Moving a fader changes the matching Pro Tools control.
+- Fader touch, channel buttons, transport, bank, and V-Pot controls respond.
+- Pro Tools changes update X-Touch LEDs and fader motors.
+- Pro Tools reports no port-in-use or exclusive-access errors.
 
 ## Troubleshooting
 
-- Confirm the X-Touch Compact appears in `mido.get_input_names()` and
-  `mido.get_output_names()`.
-- Restart loopMIDI and the script after changing virtual MIDI ports.
-- Verify the X-Touch Compact is in Mackie Control mode.
-- In Windows Settings, ensure no application has exclusive control of the
-  hardware MIDI port.
+- The script prints available MIDI ports when hardware or loopMIDI ports are missing.
+- Restart loopMIDI and the script after creating or renaming virtual ports.
+- Close applications that may hold the X-Touch MIDI ports exclusively.
+- Run `py hui_server.py --list-ports` to print MIDI devices without opening them.
+- Run `py hui_server.py --diagnostic` to print all received X-Touch MIDI messages.
+
+## Note on hardware testing
+
+Automated GitHub checks can validate syntax and MIDI message construction, but
+physical faders, LEDs, loopMIDI routing, and Pro Tools behavior must be verified
+on Windows hardware.
 
 ## Original project
 
