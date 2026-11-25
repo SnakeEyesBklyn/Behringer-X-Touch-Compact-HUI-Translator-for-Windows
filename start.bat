@@ -1,4 +1,11 @@
 @echo off
-py -m pip install -r "%~dp0requirements.txt"
-py "%~dp0hui_server.py"
-pause
+setlocal
+cd /d "%~dp0"
+py -m pip install -r requirements.txt
+if errorlevel 1 (
+    echo Dependency installation failed.
+    pause
+    exit /b 1
+)
+py hui_server.py
+if errorlevel 1 pause
