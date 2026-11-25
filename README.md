@@ -36,6 +36,30 @@ Or double-click `start.bat`.
    - Receive MIDI From: `HUI Out`
    - Send MIDI To: `HUI In`
 
+## Command-line usage
+
+The translator supports two diagnostic modes:
+
+### List MIDI ports
+
+Print the Windows MIDI input and output names without starting or opening the server:
+
+```powershell
+py hui_server.py --list-ports
+```
+
+Use this command to confirm the X-Touch Compact and loopMIDI port names before setup.
+
+### Diagnostic MIDI logging
+
+Print MIDI messages received from both the X-Touch Compact and the HUI/loopMIDI connection while the server runs:
+
+```powershell
+py hui_server.py --diagnostic
+```
+
+Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop the server. Diagnostic output is useful for checking fader movement and button behavior.
+
 ## Verification checklist
 
 - The X-Touch appears as separate MIDI input and output ports.
@@ -47,11 +71,11 @@ Or double-click `start.bat`.
 
 ## Troubleshooting
 
-- The script prints available MIDI ports when hardware or loopMIDI ports are missing.
 - Restart loopMIDI and the script after creating or renaming virtual ports.
 - Close applications that may hold the X-Touch MIDI ports exclusively.
-- Run `py hui_server.py --list-ports` to print MIDI devices without opening them.
-- Run `py hui_server.py --diagnostic` to print all received X-Touch MIDI messages.
+- Run `py hui_server.py --list-ports` to confirm that all required devices are visible.
+- Run `py hui_server.py --diagnostic` to inspect MIDI traffic in both directions.
+- If hardware or loopMIDI ports are missing, the script prints the detected MIDI port names.
 
 ## Note on hardware testing
 
